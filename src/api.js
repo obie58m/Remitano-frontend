@@ -53,6 +53,21 @@ export async function login(payload) {
   return data
 }
 
+/** Current user for the given JWT; throws with `err.status === 401` if token is invalid or expired. */
+export async function fetchCurrentUser(token) {
+  const res = await apiFetch('/api/v1/auth/me', {
+    headers: authHeaders(token),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (res.status === 401) {
+    const err = new Error(data.error || 'Session expired')
+    err.status = 401
+    throw err
+  }
+  if (!res.ok) throw new Error(data.error || 'Could not load profile')
+  return data.user
+}
+
 export async function fetchSharedVideos(token) {
   const res = await apiFetch('/api/v1/shared_videos', {
     headers: authHeaders(token),
@@ -73,6 +88,18 @@ export async function createSharedVideo(token, youtubeUrl) {
     throw new Error(data.errors?.join?.(', ') || 'Share failed')
   }
   return data
+}
+
+export async function deleteSharedVideo(token, id) {
+  const res = await apiFetch(`/api/v1/shared_videos/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  })
+  if (res.status === 204) return
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || data.errors?.join?.(', ') || 'Remove failed')
+  }
 }
 
 export function cableUrl(token) {

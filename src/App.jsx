@@ -3,6 +3,8 @@ import { createConsumer } from '@rails/actioncable'
 import {
   cableUrl,
   createSharedVideo,
+  deleteSharedVideo,
+  fetchCurrentUser,
   fetchSharedVideos,
   login,
   register,
@@ -11,13 +13,74 @@ import { youtubeThumbnailUrl } from './youtube'
 import './App.css'
 
 const TOKEN_KEY = 'yt_share_token'
+const USER_KEY = 'yt_share_user'
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY)
+    if (!raw) return null
+    const u = JSON.parse(raw)
+    if (
+      u &&
+      typeof u.id === 'number' &&
+      typeof u.email === 'string' &&
+      typeof u.name === 'string'
+    ) {
+      return u
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function PasswordInput({
+  id,
+  label,
+  value,
+  onChange,
+  visible,
+  onToggleVisible,
+  autoComplete,
+  minLength,
+  required,
+}) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <div className="password-field">
+        <input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          minLength={minLength}
+          required={required}
+        />
+        <button
+          type="button"
+          className="password-toggle"
+          onClick={onToggleVisible}
+          aria-pressed={visible}
+          aria-label={visible ? 'Hide password' : 'Show password'}
+        >
+          {visible ? 'Hide' : 'Show'}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY))
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() =>
+    localStorage.getItem(TOKEN_KEY) ? readStoredUser() : null,
+  )
   const [videos, setVideos] = useState([])
   const [shareUrl, setShareUrl] = useState('')
   const [formError, setFormError] = useState('')
+  const [listError, setListError] = useState('')
   const [authMode, setAuthMode] = useState('login')
   const [authFields, setAuthFields] = useState({
     email: '',
@@ -26,13 +89,46 @@ export default function App() {
     name: '',
   })
   const [toast, setToast] = useState(null)
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegPassword, setShowRegPassword] = useState(false)
+  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false)
+  const [removingId, setRemovingId] = useState(null)
+
+  useEffect(() => {
+    setShowLoginPassword(false)
+    setShowRegPassword(false)
+    setShowRegPasswordConfirm(false)
+  }, [authMode])
 
   const persistAuth = useCallback((nextToken, nextUser) => {
-    if (nextToken) localStorage.setItem(TOKEN_KEY, nextToken)
-    else localStorage.removeItem(TOKEN_KEY)
+    if (nextToken) {
+      localStorage.setItem(TOKEN_KEY, nextToken)
+      if (nextUser) localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(USER_KEY)
+    }
     setToken(nextToken)
     setUser(nextUser)
   }, [])
+
+  useEffect(() => {
+    if (!token || user) return undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        const u = await fetchCurrentUser(token)
+        if (cancelled || !u) return
+        setUser(u)
+        localStorage.setItem(USER_KEY, JSON.stringify(u))
+      } catch (err) {
+        if (!cancelled && err.status === 401) persistAuth(null, null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token, user, persistAuth])
 
   const loadVideos = useCallback(async () => {
     if (!token) {
@@ -93,9 +189,23 @@ export default function App() {
     }
   }
 
+  const onRemoveShared = async (id) => {
+    setListError('')
+    setRemovingId(id)
+    try {
+      await deleteSharedVideo(token, id)
+      setVideos((list) => list.filter((v) => v.id !== id))
+    } catch (err) {
+      setListError(err.message)
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
   const onShare = async (e) => {
     e.preventDefault()
     setFormError('')
+    setListError('')
     try {
       await createSharedVideo(token, shareUrl.trim())
       setShareUrl('')
@@ -110,6 +220,7 @@ export default function App() {
     setVideos([])
     setToast(null)
     setFormError('')
+    setListError('')
   }
 
   const heading = useMemo(
@@ -117,8 +228,10 @@ export default function App() {
     [user],
   )
 
+  const appClass = `app${toast ? ' has-toast' : ''}`
+
   return (
-    <div className="app" style={{ paddingTop: toast ? '3.75rem' : undefined }}>
+    <div className={appClass}>
       {toast && (
         <div className="banner" role="status">
           <div className="banner-main">
@@ -135,103 +248,134 @@ export default function App() {
               <strong>{toast.sharer_name}</strong> shared: {toast.title}
             </span>
           </div>
-          <button type="button" onClick={() => setToast(null)}>
+          <button
+            type="button"
+            className="banner-dismiss"
+            onClick={() => setToast(null)}
+          >
             Dismiss
           </button>
         </div>
       )}
 
-      <header>
+      <header className="app-header">
         <h1>{heading}</h1>
-        {user && (
-          <p>
-            Signed in as {user.email}{' '}
+        {user ? (
+          <p className="sub">
+            Signed in as {user.email}
             <button type="button" className="link" onClick={logout}>
               Log out
             </button>
           </p>
+        ) : (
+          <p className="sub">Sign in to share videos and see the feed.</p>
         )}
       </header>
 
       {!user ? (
-        <section className="panel">
-          <h2>{authMode === 'login' ? 'Log in' : 'Create account'}</h2>
+        <section className="auth-card">
+          <h2>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
+          <p className="auth-lead">
+            {authMode === 'login'
+              ? 'Enter your email and password to continue.'
+              : 'All fields are required. Use at least 8 characters for your password.'}
+          </p>
           <form onSubmit={onAuthSubmit}>
             {authMode === 'register' && (
-              <div className="row">
-                <label>
-                  Name
-                  <input
-                    value={authFields.name}
-                    onChange={(ev) =>
-                      setAuthFields((f) => ({ ...f, name: ev.target.value }))
-                    }
-                    required={authMode === 'register'}
-                  />
-                </label>
-              </div>
-            )}
-            <div className="row">
-              <label>
-                Email
+              <div className="field">
+                <label htmlFor="auth-name">Full name</label>
                 <input
-                  type="email"
-                  value={authFields.email}
+                  id="auth-name"
+                  type="text"
+                  value={authFields.name}
                   onChange={(ev) =>
-                    setAuthFields((f) => ({ ...f, email: ev.target.value }))
+                    setAuthFields((f) => ({ ...f, name: ev.target.value }))
                   }
+                  autoComplete="name"
                   required
                 />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
+              </div>
+            )}
+            <div className="field">
+              <label htmlFor="auth-email">Email</label>
+              <input
+                id="auth-email"
+                type="email"
+                value={authFields.email}
+                onChange={(ev) =>
+                  setAuthFields((f) => ({ ...f, email: ev.target.value }))
+                }
+                autoComplete="email"
+                required
+              />
+            </div>
+            {authMode === 'login' ? (
+              <PasswordInput
+                id="auth-password-login"
+                label="Password"
+                value={authFields.password}
+                onChange={(ev) =>
+                  setAuthFields((f) => ({ ...f, password: ev.target.value }))
+                }
+                visible={showLoginPassword}
+                onToggleVisible={() => setShowLoginPassword((v) => !v)}
+                autoComplete="current-password"
+                minLength={8}
+                required
+              />
+            ) : (
+              <>
+                <PasswordInput
+                  id="auth-password-reg"
+                  label="Password"
                   value={authFields.password}
                   onChange={(ev) =>
                     setAuthFields((f) => ({ ...f, password: ev.target.value }))
                   }
-                  required
+                  visible={showRegPassword}
+                  onToggleVisible={() => setShowRegPassword((v) => !v)}
+                  autoComplete="new-password"
                   minLength={8}
+                  required
                 />
-              </label>
-            </div>
-            {authMode === 'register' && (
-              <div className="row">
-                <label>
-                  Confirm password
-                  <input
-                    type="password"
-                    value={authFields.password_confirmation}
-                    onChange={(ev) =>
-                      setAuthFields((f) => ({
-                        ...f,
-                        password_confirmation: ev.target.value,
-                      }))
-                    }
-                    required
-                    minLength={8}
-                  />
-                </label>
-              </div>
+                <PasswordInput
+                  id="auth-password-confirm"
+                  label="Confirm password"
+                  value={authFields.password_confirmation}
+                  onChange={(ev) =>
+                    setAuthFields((f) => ({
+                      ...f,
+                      password_confirmation: ev.target.value,
+                    }))
+                  }
+                  visible={showRegPasswordConfirm}
+                  onToggleVisible={() => setShowRegPasswordConfirm((v) => !v)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </>
             )}
             {formError && <p className="error">{formError}</p>}
-            <div className="row">
+            <div className="auth-actions">
               <button type="submit" className="primary">
-                {authMode === 'login' ? 'Log in' : 'Register'}
+                {authMode === 'login' ? 'Log in' : 'Create account'}
               </button>
-              <button
-                type="button"
-                className="link"
-                onClick={() => {
-                  setAuthMode(authMode === 'login' ? 'register' : 'login')
-                  setFormError('')
-                }}
-              >
+              <p className="auth-switch">
                 {authMode === 'login'
-                  ? 'Need an account? Register'
-                  : 'Have an account? Log in'}
-              </button>
+                  ? 'New here?'
+                  : 'Already have an account?'}{' '}
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => {
+                    setAuthMode(authMode === 'login' ? 'register' : 'login')
+                    setFormError('')
+                  }}
+                >
+                  {authMode === 'login' ? 'Register' : 'Log in'}
+                </button>
+              </p>
             </div>
           </form>
         </section>
@@ -262,6 +406,7 @@ export default function App() {
       {user && (
         <section className="panel">
           <h2>Shared videos</h2>
+          {listError && <p className="error">{listError}</p>}
           {videos.length === 0 ? (
             <p>No videos yet.</p>
           ) : (
@@ -286,9 +431,21 @@ export default function App() {
                       <a href={v.youtube_url} target="_blank" rel="noreferrer">
                         {v.title}
                       </a>
-                      <div className="meta">
-                        Shared by {v.sharer_name} ·{' '}
-                        {new Date(v.created_at).toLocaleString()}
+                      <div className="video-meta-row">
+                        <div className="meta">
+                          Shared by {v.sharer_name} ·{' '}
+                          {new Date(v.created_at).toLocaleString()}
+                        </div>
+                        {v.removable && (
+                          <button
+                            type="button"
+                            className="video-remove"
+                            onClick={() => onRemoveShared(v.id)}
+                            disabled={removingId === v.id}
+                          >
+                            {removingId === v.id ? 'Removing…' : 'Remove'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </li>
