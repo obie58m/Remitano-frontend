@@ -7,6 +7,7 @@ import {
   fetchCurrentUser,
   fetchSharedVideos,
   login,
+  register,
   voteSharedVideo,
 } from './api'
 import { youtubeEmbedUrl, youtubeThumbnailUrl } from './youtube'
@@ -40,16 +41,36 @@ export default function App() {
     localStorage.getItem(TOKEN_KEY) ? readStoredUser() : null,
   )
   const [videos, setVideos] = useState([])
-  const [page, setPage] = useState('list') // list | share
+  const [page, setPage] = useState('list') // list | share | login | register
   const [shareUrl, setShareUrl] = useState('')
   const [shareDescription, setShareDescription] = useState('')
   const [formError, setFormError] = useState('')
   const [listError, setListError] = useState('')
-  const [navAuth, setNavAuth] = useState({ email: '', password: '' })
+  const [loginFields, setLoginFields] = useState({ email: '', password: '' })
+  const [registerFields, setRegisterFields] = useState({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+  })
   const [toast, setToast] = useState(null)
-  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showLoginPasswordPage, setShowLoginPasswordPage] = useState(false)
+  const [showRegPassword, setShowRegPassword] = useState(false)
+  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false)
   const [removingId, setRemovingId] = useState(null)
   const [votingId, setVotingId] = useState(null)
+
+  const defaultNameFromEmail = useCallback((email) => {
+    const clean = (email || '').toString().trim()
+    const local = clean.split('@')[0] || clean
+    const base = local.replace(/[._-]+/g, ' ').trim()
+    if (!base) return 'User'
+    return base
+      .split(/\s+/)
+      .slice(0, 4)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+  }, [])
 
   const persistAuth = useCallback((nextToken, nextUser) => {
     if (nextToken) {
@@ -128,14 +149,35 @@ export default function App() {
     }
   }, [token, loadVideos])
 
-  const onAuthSubmit = async (e) => {
+  const onLoginSubmit = async (e) => {
     e.preventDefault()
     setFormError('')
     try {
-      const data = await login({ email: navAuth.email, password: navAuth.password })
+      const data = await login({
+        email: loginFields.email.trim(),
+        password: loginFields.password,
+      })
       persistAuth(data.token, data.user)
-      setFormError('')
-      setListError('')
+      setPage('list')
+    } catch (err) {
+      setFormError(err.message)
+    }
+  }
+
+  const onRegisterSubmit = async (e) => {
+    e.preventDefault()
+    setFormError('')
+    try {
+      const payload = {
+        ...registerFields,
+        email: registerFields.email.trim(),
+        name:
+          registerFields.name.trim() ||
+          defaultNameFromEmail(registerFields.email),
+      }
+      const data = await register(payload)
+      persistAuth(data.token, data.user)
+      setPage('list')
     } catch (err) {
       setFormError(err.message)
     }
@@ -248,49 +290,28 @@ export default function App() {
               </button>
             </>
           ) : (
-            <form className="nav-auth" onSubmit={onAuthSubmit}>
-              <input
-                className="nav-input"
-                type="email"
-                placeholder="email"
-                value={navAuth.email}
-                onChange={(e) => setNavAuth((s) => ({ ...s, email: e.target.value }))}
-                autoComplete="email"
-                required
-              />
-              <div className="nav-password">
-                <input
-                  className="nav-input"
-                  type={showLoginPassword ? 'text' : 'password'}
-                  placeholder="password"
-                  value={navAuth.password}
-                  onChange={(e) =>
-                    setNavAuth((s) => ({ ...s, password: e.target.value }))
-                  }
-                  autoComplete="current-password"
-                  minLength={8}
-                  required
-                />
-                <button
-                  type="button"
-                  className="nav-toggle"
-                  onClick={() => setShowLoginPassword((v) => !v)}
-                  aria-pressed={showLoginPassword}
-                >
-                  {showLoginPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              <button type="submit" className="nav-btn primary">
-                Login / Register
+            <>
+              <button
+                type="button"
+                className="nav-btn primary"
+                onClick={() => {
+                  setFormError('')
+                  setPage('login')
+                }}
+              >
+                Login
               </button>
               <button
                 type="button"
-                className="nav-link"
-                onClick={() => setFormError('Register is available on the API. For this UI, use the demo user or register via Postman/cURL.')}
+                className="nav-btn"
+                onClick={() => {
+                  setFormError('')
+                  setPage('register')
+                }}
               >
                 Register
               </button>
-            </form>
+            </>
           )}
         </div>
       </header>
@@ -298,7 +319,179 @@ export default function App() {
       {formError && <p className="error">{formError}</p>}
       {listError && <p className="error">{listError}</p>}
 
-      {page === 'share' ? (
+      {page === 'login' ? (
+        <section className="auth-page">
+          <div className="auth-card-prod">
+            <h2>Login</h2>
+            <p className="auth-lead-prod">
+              Enter your email and password to continue.
+            </p>
+            <form onSubmit={onLoginSubmit} className="auth-form-prod">
+              <label className="auth-field">
+                Email
+                <input
+                  type="email"
+                  value={loginFields.email}
+                  onChange={(e) =>
+                    setLoginFields((s) => ({ ...s, email: e.target.value }))
+                  }
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <label className="auth-field">
+                Password
+                <div className="auth-password-row">
+                  <input
+                    type={showLoginPasswordPage ? 'text' : 'password'}
+                    value={loginFields.password}
+                    onChange={(e) =>
+                      setLoginFields((s) => ({ ...s, password: e.target.value }))
+                    }
+                    autoComplete="current-password"
+                    minLength={8}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-toggle"
+                    onClick={() => setShowLoginPasswordPage((v) => !v)}
+                    aria-pressed={showLoginPasswordPage}
+                  >
+                    {showLoginPasswordPage ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </label>
+              <div className="auth-actions-prod">
+                <button type="submit" className="auth-primary">
+                  Login
+                </button>
+                <button
+                  type="button"
+                  className="auth-secondary"
+                  onClick={() => setPage('register')}
+                >
+                  Go to Register
+                </button>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => setPage('list')}
+                >
+                  Back to list
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      ) : page === 'register' ? (
+        <section className="auth-page">
+          <div className="auth-card-prod">
+            <h2>Register</h2>
+            <p className="auth-lead-prod">
+              Create an account to share movies and vote. Password must be at
+              least 8 characters.
+            </p>
+            <form onSubmit={onRegisterSubmit} className="auth-form-prod">
+              <label className="auth-field">
+                Full name
+                <input
+                  type="text"
+                  value={registerFields.name}
+                  onChange={(e) =>
+                    setRegisterFields((s) => ({ ...s, name: e.target.value }))
+                  }
+                  autoComplete="name"
+                  placeholder={defaultNameFromEmail(registerFields.email)}
+                />
+              </label>
+              <label className="auth-field">
+                Email
+                <input
+                  type="email"
+                  value={registerFields.email}
+                  onChange={(e) =>
+                    setRegisterFields((s) => ({ ...s, email: e.target.value }))
+                  }
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <label className="auth-field">
+                Password
+                <div className="auth-password-row">
+                  <input
+                    type={showRegPassword ? 'text' : 'password'}
+                    value={registerFields.password}
+                    onChange={(e) =>
+                      setRegisterFields((s) => ({
+                        ...s,
+                        password: e.target.value,
+                      }))
+                    }
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-toggle"
+                    onClick={() => setShowRegPassword((v) => !v)}
+                    aria-pressed={showRegPassword}
+                  >
+                    {showRegPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </label>
+              <label className="auth-field">
+                Confirm password
+                <div className="auth-password-row">
+                  <input
+                    type={showRegPasswordConfirm ? 'text' : 'password'}
+                    value={registerFields.password_confirmation}
+                    onChange={(e) =>
+                      setRegisterFields((s) => ({
+                        ...s,
+                        password_confirmation: e.target.value,
+                      }))
+                    }
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-toggle"
+                    onClick={() => setShowRegPasswordConfirm((v) => !v)}
+                    aria-pressed={showRegPasswordConfirm}
+                  >
+                    {showRegPasswordConfirm ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </label>
+              <div className="auth-actions-prod">
+                <button type="submit" className="auth-primary">
+                  Create account
+                </button>
+                <button
+                  type="button"
+                  className="auth-secondary"
+                  onClick={() => setPage('login')}
+                >
+                  Go to Login
+                </button>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => setPage('list')}
+                >
+                  Back to list
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      ) : page === 'share' ? (
         <section className="share-page">
           <div className="share-card">
             <h2>Share a Youtube movie</h2>
@@ -342,13 +535,23 @@ export default function App() {
         </section>
       ) : (
         <main className="list-page">
-          <ul className="movie-list">
-            {videos.map((v) => {
-              const embed = youtubeEmbedUrl(v.youtube_video_id)
-              const isUp = v.my_vote === 1
-              const isDown = v.my_vote === -1
-              return (
-                <li key={v.id} className="movie-item">
+          {videos.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-title">No shared movies yet</div>
+              <div className="empty-sub">
+                {user
+                  ? 'Click “Share a movie” to post the first one.'
+                  : 'Log in to share a movie and vote.'}
+              </div>
+            </div>
+          ) : (
+            <ul className="movie-list">
+              {videos.map((v) => {
+                const embed = youtubeEmbedUrl(v.youtube_video_id)
+                const isUp = v.my_vote === 1
+                const isDown = v.my_vote === -1
+                return (
+                  <li key={v.id} className="movie-item">
                   <div className="movie-player">
                     {embed ? (
                       <iframe
@@ -422,9 +625,10 @@ export default function App() {
                     </div>
                   </div>
                 </li>
-              )
-            })}
-          </ul>
+                )
+              })}
+            </ul>
+          )}
         </main>
       )}
     </div>

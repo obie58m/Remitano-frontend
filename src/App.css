@@ -175,6 +175,25 @@
   padding-top: 0.25rem;
 }
 
+.empty-state {
+  border: 1px dashed #111827;
+  border-radius: 10px;
+  padding: 2.25rem 1.5rem;
+  text-align: center;
+  background: rgba(17, 24, 39, 0.02);
+}
+
+.empty-title {
+  font-weight: 900;
+  font-size: 1.2rem;
+  margin-bottom: 0.35rem;
+}
+
+.empty-sub {
+  color: #374151;
+  font-size: 0.95rem;
+}
+
 .movie-list {
   list-style: none;
   padding: 0;
@@ -345,6 +364,115 @@
 .share-btn.ghost {
   background: #fff;
   opacity: 0.85;
+}
+
+/* Auth pages (production-level) */
+.auth-page {
+  padding: 2.25rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-card-prod {
+  width: min(520px, 100%);
+  border: 1px solid #111827;
+  border-radius: 8px;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.auth-card-prod h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.auth-lead-prod {
+  margin: 0 0 1.25rem;
+  color: #374151;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.auth-form-prod {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.auth-field {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.auth-field input {
+  border: 1px solid #111827;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-weight: 500;
+}
+
+.auth-password-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.auth-toggle {
+  border: 1px solid #111827;
+  background: #fff;
+  height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+.auth-actions-prod {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+  align-items: center;
+}
+
+.auth-primary {
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+  height: 38px;
+  padding: 0 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.auth-secondary {
+  border: 1px solid #111827;
+  background: #fff;
+  height: 38px;
+  padding: 0 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 900;
 }
 
 /* Legacy styles below were used by the previous UI. Keep them for now (non-breaking),
