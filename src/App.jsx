@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createConsumer } from '@rails/actioncable'
 import {
   cableUrl,
@@ -7,9 +7,9 @@ import {
   fetchCurrentUser,
   fetchSharedVideos,
   login,
-  register,
+  voteSharedVideo,
 } from './api'
-import { youtubeThumbnailUrl } from './youtube'
+import { youtubeEmbedUrl, youtubeThumbnailUrl } from './youtube'
 import './App.css'
 
 const TOKEN_KEY = 'yt_share_token'
@@ -34,71 +34,22 @@ function readStoredUser() {
   }
 }
 
-function PasswordInput({
-  id,
-  label,
-  value,
-  onChange,
-  visible,
-  onToggleVisible,
-  autoComplete,
-  minLength,
-  required,
-}) {
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <div className="password-field">
-        <input
-          id={id}
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={onChange}
-          autoComplete={autoComplete}
-          minLength={minLength}
-          required={required}
-        />
-        <button
-          type="button"
-          className="password-toggle"
-          onClick={onToggleVisible}
-          aria-pressed={visible}
-          aria-label={visible ? 'Hide password' : 'Show password'}
-        >
-          {visible ? 'Hide' : 'Show'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY))
   const [user, setUser] = useState(() =>
     localStorage.getItem(TOKEN_KEY) ? readStoredUser() : null,
   )
   const [videos, setVideos] = useState([])
+  const [page, setPage] = useState('list') // list | share
   const [shareUrl, setShareUrl] = useState('')
+  const [shareDescription, setShareDescription] = useState('')
   const [formError, setFormError] = useState('')
   const [listError, setListError] = useState('')
-  const [authMode, setAuthMode] = useState('login')
-  const [authFields, setAuthFields] = useState({
-    email: '',
-    password: '',
-    password_confirmation: '',
-    name: '',
-  })
+  const [navAuth, setNavAuth] = useState({ email: '', password: '' })
   const [toast, setToast] = useState(null)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
-  const [showRegPassword, setShowRegPassword] = useState(false)
-  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false)
   const [removingId, setRemovingId] = useState(null)
-
-  useEffect(() => {
-    setShowLoginPassword(false)
-    setShowRegPassword(false)
-    setShowRegPasswordConfirm(false)
-  }, [authMode])
+  const [votingId, setVotingId] = useState(null)
 
   const persistAuth = useCallback((nextToken, nextUser) => {
     if (nextToken) {
@@ -131,10 +82,6 @@ export default function App() {
   }, [token, user, persistAuth])
 
   const loadVideos = useCallback(async () => {
-    if (!token) {
-      setVideos([])
-      return
-    }
     try {
       const list = await fetchSharedVideos(token)
       setVideos(Array.isArray(list) ? list : [])
@@ -144,8 +91,19 @@ export default function App() {
   }, [token])
 
   useEffect(() => {
-    loadVideos()
-  }, [loadVideos])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list = await fetchSharedVideos(token)
+        if (!cancelled) setVideos(Array.isArray(list) ? list : [])
+      } catch {
+        if (!cancelled) setVideos([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
   useEffect(() => {
     if (!token) return undefined
@@ -174,16 +132,10 @@ export default function App() {
     e.preventDefault()
     setFormError('')
     try {
-      if (authMode === 'register') {
-        const data = await register(authFields)
-        persistAuth(data.token, data.user)
-      } else {
-        const data = await login({
-          email: authFields.email,
-          password: authFields.password,
-        })
-        persistAuth(data.token, data.user)
-      }
+      const data = await login({ email: navAuth.email, password: navAuth.password })
+      persistAuth(data.token, data.user)
+      setFormError('')
+      setListError('')
     } catch (err) {
       setFormError(err.message)
     }
@@ -207,26 +159,39 @@ export default function App() {
     setFormError('')
     setListError('')
     try {
-      await createSharedVideo(token, shareUrl.trim())
+      if (!token) throw new Error('Please log in to share a movie.')
+      await createSharedVideo(token, shareUrl.trim(), shareDescription.trim())
       setShareUrl('')
+      setShareDescription('')
+      setPage('list')
       await loadVideos()
     } catch (err) {
       setFormError(err.message)
     }
   }
 
+  const onVote = async (id, nextValue) => {
+    setListError('')
+    try {
+      if (!token) throw new Error('Please log in to vote.')
+      setVotingId(id)
+      const updated = await voteSharedVideo(token, id, nextValue)
+      setVideos((list) => list.map((v) => (v.id === id ? updated : v)))
+    } catch (err) {
+      setListError(err.message)
+    } finally {
+      setVotingId(null)
+    }
+  }
+
   const logout = () => {
     persistAuth(null, null)
-    setVideos([])
     setToast(null)
     setFormError('')
     setListError('')
+    setPage('list')
+    loadVideos()
   }
-
-  const heading = useMemo(
-    () => (user ? `Hi, ${user.name}` : 'YouTube video sharing'),
-    [user],
-  )
 
   const appClass = `app${toast ? ' has-toast' : ''}`
 
@@ -258,202 +223,209 @@ export default function App() {
         </div>
       )}
 
-      <header className="app-header">
-        <h1>{heading}</h1>
-        {user ? (
-          <p className="sub">
-            Signed in as {user.email}
-            <button type="button" className="link" onClick={logout}>
-              Log out
-            </button>
-          </p>
-        ) : (
-          <p className="sub">Sign in to share videos and see the feed.</p>
-        )}
-      </header>
-
-      {!user ? (
-        <section className="auth-card">
-          <h2>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
-          <p className="auth-lead">
-            {authMode === 'login'
-              ? 'Enter your email and password to continue.'
-              : 'All fields are required. Use at least 8 characters for your password.'}
-          </p>
-          <form onSubmit={onAuthSubmit}>
-            {authMode === 'register' && (
-              <div className="field">
-                <label htmlFor="auth-name">Full name</label>
-                <input
-                  id="auth-name"
-                  type="text"
-                  value={authFields.name}
-                  onChange={(ev) =>
-                    setAuthFields((f) => ({ ...f, name: ev.target.value }))
-                  }
-                  autoComplete="name"
-                  required
-                />
-              </div>
-            )}
-            <div className="field">
-              <label htmlFor="auth-email">Email</label>
+      <header className="nav">
+        <div className="nav-left">
+          <div className="brand" role="banner">
+            <span className="brand-mark" aria-hidden="true">
+              ⌂
+            </span>
+            <span className="brand-name">Funny Movies</span>
+          </div>
+        </div>
+        <div className="nav-right">
+          {user ? (
+            <>
+              <span className="welcome">Welcome {user.email}</span>
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={() => setPage('share')}
+              >
+                Share a movie
+              </button>
+              <button type="button" className="nav-btn" onClick={logout}>
+                Logout
+              </button>
+            </>
+          ) : (
+            <form className="nav-auth" onSubmit={onAuthSubmit}>
               <input
-                id="auth-email"
+                className="nav-input"
                 type="email"
-                value={authFields.email}
-                onChange={(ev) =>
-                  setAuthFields((f) => ({ ...f, email: ev.target.value }))
-                }
+                placeholder="email"
+                value={navAuth.email}
+                onChange={(e) => setNavAuth((s) => ({ ...s, email: e.target.value }))}
                 autoComplete="email"
                 required
               />
-            </div>
-            {authMode === 'login' ? (
-              <PasswordInput
-                id="auth-password-login"
-                label="Password"
-                value={authFields.password}
-                onChange={(ev) =>
-                  setAuthFields((f) => ({ ...f, password: ev.target.value }))
-                }
-                visible={showLoginPassword}
-                onToggleVisible={() => setShowLoginPassword((v) => !v)}
-                autoComplete="current-password"
-                minLength={8}
-                required
-              />
-            ) : (
-              <>
-                <PasswordInput
-                  id="auth-password-reg"
-                  label="Password"
-                  value={authFields.password}
-                  onChange={(ev) =>
-                    setAuthFields((f) => ({ ...f, password: ev.target.value }))
+              <div className="nav-password">
+                <input
+                  className="nav-input"
+                  type={showLoginPassword ? 'text' : 'password'}
+                  placeholder="password"
+                  value={navAuth.password}
+                  onChange={(e) =>
+                    setNavAuth((s) => ({ ...s, password: e.target.value }))
                   }
-                  visible={showRegPassword}
-                  onToggleVisible={() => setShowRegPassword((v) => !v)}
-                  autoComplete="new-password"
+                  autoComplete="current-password"
                   minLength={8}
                   required
                 />
-                <PasswordInput
-                  id="auth-password-confirm"
-                  label="Confirm password"
-                  value={authFields.password_confirmation}
-                  onChange={(ev) =>
-                    setAuthFields((f) => ({
-                      ...f,
-                      password_confirmation: ev.target.value,
-                    }))
-                  }
-                  visible={showRegPasswordConfirm}
-                  onToggleVisible={() => setShowRegPasswordConfirm((v) => !v)}
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-              </>
-            )}
-            {formError && <p className="error">{formError}</p>}
-            <div className="auth-actions">
-              <button type="submit" className="primary">
-                {authMode === 'login' ? 'Log in' : 'Create account'}
-              </button>
-              <p className="auth-switch">
-                {authMode === 'login'
-                  ? 'New here?'
-                  : 'Already have an account?'}{' '}
                 <button
                   type="button"
-                  className="link"
-                  onClick={() => {
-                    setAuthMode(authMode === 'login' ? 'register' : 'login')
-                    setFormError('')
-                  }}
+                  className="nav-toggle"
+                  onClick={() => setShowLoginPassword((v) => !v)}
+                  aria-pressed={showLoginPassword}
                 >
-                  {authMode === 'login' ? 'Register' : 'Log in'}
+                  {showLoginPassword ? 'Hide' : 'Show'}
                 </button>
-              </p>
-            </div>
-          </form>
+              </div>
+              <button type="submit" className="nav-btn primary">
+                Login / Register
+              </button>
+              <button
+                type="button"
+                className="nav-link"
+                onClick={() => setFormError('Register is available on the API. For this UI, use the demo user or register via Postman/cURL.')}
+              >
+                Register
+              </button>
+            </form>
+          )}
+        </div>
+      </header>
+
+      {formError && <p className="error">{formError}</p>}
+      {listError && <p className="error">{listError}</p>}
+
+      {page === 'share' ? (
+        <section className="share-page">
+          <div className="share-card">
+            <h2>Share a Youtube movie</h2>
+            <form onSubmit={onShare}>
+              <div className="share-row">
+                <label className="share-label">
+                  Youtube URL:
+                  <input
+                    type="url"
+                    value={shareUrl}
+                    onChange={(ev) => setShareUrl(ev.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="share-row">
+                <label className="share-label">
+                  Description:
+                  <textarea
+                    value={shareDescription}
+                    onChange={(e) => setShareDescription(e.target.value)}
+                    rows={3}
+                    placeholder="Why is this movie funny?"
+                  />
+                </label>
+              </div>
+              <div className="share-actions">
+                <button type="submit" className="share-btn">
+                  Share
+                </button>
+                <button
+                  type="button"
+                  className="share-btn ghost"
+                  onClick={() => setPage('list')}
+                >
+                  Back
+                </button>
+              </div>
+            </form>
+          </div>
         </section>
       ) : (
-        <section className="panel">
-          <h2>Share a YouTube link</h2>
-          <form onSubmit={onShare}>
-            <div className="row">
-              <label style={{ flex: 1 }}>
-                URL
-                <input
-                  type="url"
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  value={shareUrl}
-                  onChange={(ev) => setShareUrl(ev.target.value)}
-                  required
-                />
-              </label>
-              <button type="submit" className="primary">
-                Share
-              </button>
-            </div>
-            {formError && <p className="error">{formError}</p>}
-          </form>
-        </section>
-      )}
+        <main className="list-page">
+          <ul className="movie-list">
+            {videos.map((v) => {
+              const embed = youtubeEmbedUrl(v.youtube_video_id)
+              const isUp = v.my_vote === 1
+              const isDown = v.my_vote === -1
+              return (
+                <li key={v.id} className="movie-item">
+                  <div className="movie-player">
+                    {embed ? (
+                      <iframe
+                        src={embed}
+                        title={v.title}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <div className="movie-player-fallback" />
+                    )}
+                  </div>
+                  <div className="movie-info">
+                    <div className="movie-top">
+                      <div>
+                        <div className="movie-title">{v.title}</div>
+                        <div className="movie-shared">
+                          Shared by: {v.sharer_email || v.sharer_name}
+                        </div>
+                      </div>
+                      <div className="movie-votes">
+                        <button
+                          type="button"
+                          className={`vote-btn ${isUp ? 'active' : ''}`}
+                          onClick={() => onVote(v.id, isUp ? 0 : 1)}
+                          disabled={votingId === v.id}
+                          title="Up-vote"
+                        >
+                          👍
+                        </button>
+                        <span className="vote-count">{v.upvotes_count}</span>
+                        <button
+                          type="button"
+                          className={`vote-btn ${isDown ? 'active' : ''}`}
+                          onClick={() => onVote(v.id, isDown ? 0 : -1)}
+                          disabled={votingId === v.id}
+                          title="Down-vote"
+                        >
+                          👎
+                        </button>
+                        <span className="vote-count">{v.downvotes_count}</span>
+                      </div>
+                    </div>
 
-      {user && (
-        <section className="panel">
-          <h2>Shared videos</h2>
-          {listError && <p className="error">{listError}</p>}
-          {videos.length === 0 ? (
-            <p>No videos yet.</p>
-          ) : (
-            <ul className="videos">
-              {videos.map((v) => {
-                const thumb = v.youtube_video_id
-                  ? youtubeThumbnailUrl(v.youtube_video_id)
-                  : null
-                return (
-                  <li key={v.id} className="video-card">
-                    {thumb && (
+                    <div className="movie-desc">
+                      <div className="movie-desc-label">Description:</div>
+                      <div className="movie-desc-text">
+                        {v.description?.trim() ? v.description : '—'}
+                      </div>
+                    </div>
+
+                    <div className="movie-actions">
                       <a
-                        className="video-thumb"
+                        className="movie-link"
                         href={v.youtube_url}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        <img src={thumb} alt="" loading="lazy" />
+                        Open on YouTube
                       </a>
-                    )}
-                    <div className="video-body">
-                      <a href={v.youtube_url} target="_blank" rel="noreferrer">
-                        {v.title}
-                      </a>
-                      <div className="video-meta-row">
-                        <div className="meta">
-                          Shared by {v.sharer_name} ·{' '}
-                          {new Date(v.created_at).toLocaleString()}
-                        </div>
-                        {v.removable && (
-                          <button
-                            type="button"
-                            className="video-remove"
-                            onClick={() => onRemoveShared(v.id)}
-                            disabled={removingId === v.id}
-                          >
-                            {removingId === v.id ? 'Removing…' : 'Remove'}
-                          </button>
-                        )}
-                      </div>
+                      {v.removable && (
+                        <button
+                          type="button"
+                          className="movie-remove"
+                          onClick={() => onRemoveShared(v.id)}
+                          disabled={removingId === v.id}
+                        >
+                          {removingId === v.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      )}
                     </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </main>
       )}
     </div>
   )

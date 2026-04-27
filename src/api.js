@@ -17,6 +17,7 @@ async function apiFetch(path, options) {
     if (err instanceof TypeError) {
       throw new Error(
         'Could not reach the API. From backend/, run `bin/rails server -p 3000`. In dev, use `npm run dev` (Vite proxies /api to port 3000). If you set VITE_API_URL in .env, ensure that host is reachable and CORS allows this origin.',
+        { cause: err },
       )
     }
     throw err
@@ -77,11 +78,11 @@ export async function fetchSharedVideos(token) {
   return data
 }
 
-export async function createSharedVideo(token, youtubeUrl) {
+export async function createSharedVideo(token, youtubeUrl, description) {
   const res = await apiFetch('/api/v1/shared_videos', {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ youtube_url: youtubeUrl }),
+    body: JSON.stringify({ youtube_url: youtubeUrl, description }),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -100,6 +101,19 @@ export async function deleteSharedVideo(token, id) {
   if (!res.ok) {
     throw new Error(data.error || data.errors?.join?.(', ') || 'Remove failed')
   }
+}
+
+export async function voteSharedVideo(token, id, value) {
+  const res = await apiFetch(`/api/v1/shared_videos/${id}/vote`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ value }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || data.errors?.join?.(', ') || 'Vote failed')
+  }
+  return data
 }
 
 export function cableUrl(token) {

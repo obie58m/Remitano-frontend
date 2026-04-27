@@ -1,7 +1,7 @@
 .app {
-  max-width: 440px;
+  max-width: 980px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.25rem 1.25rem 3rem;
   text-align: left;
 }
 
@@ -11,10 +11,6 @@
 }
 
 @media (min-width: 640px) {
-  .app {
-    max-width: 520px;
-  }
-
   .app.has-toast {
     padding-top: 5rem;
   }
@@ -77,41 +73,282 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Header below reserved toast area */
-.app-header {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--header-border, #e5e7eb);
+/* Top nav (wireframe-like) */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.25rem 0.85rem;
+  border-bottom: 2px solid #111827;
+  margin-bottom: 1.1rem;
 }
 
-.app-header h1 {
-  font-size: 1.35rem;
-  font-weight: 600;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  font-size: 1.45rem;
   letter-spacing: -0.02em;
-  margin: 0 0 0.35rem;
-  color: var(--heading, #0f172a);
 }
 
-.app-header .sub {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--muted, #64748b);
+.brand-mark {
+  font-size: 1.2em;
+  transform: translateY(-1px);
 }
 
-.app-header .sub .link {
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.welcome {
+  font-size: 0.9rem;
+}
+
+.nav-auth {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.nav-input {
+  height: 30px;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #111827;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.nav-password {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-toggle {
   margin-left: 0.35rem;
+  border: 1px solid #111827;
+  background: #fff;
+  height: 30px;
+  padding: 0 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
-/* Auth card */
-.auth-card {
-  border-radius: 12px;
-  padding: 1.75rem 1.5rem 1.5rem;
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--card-border, #e2e8f0);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 8px 24px -4px rgba(15, 23, 42, 0.08);
+.nav-btn {
+  border: 1px solid #111827;
+  background: #fff;
+  height: 30px;
+  padding: 0 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
 }
+
+.nav-btn.primary {
+  background: #111827;
+  color: #fff;
+}
+
+.nav-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}
+
+/* List page layout */
+.list-page {
+  padding-top: 0.25rem;
+}
+
+.movie-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.movie-item {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 1rem 1.25rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid #111827;
+}
+
+.movie-player iframe,
+.movie-player-fallback {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #111827;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.movie-info {
+  min-width: 0;
+}
+
+.movie-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.movie-title {
+  font-weight: 800;
+  color: #b91c1c;
+  margin-bottom: 0.15rem;
+}
+
+.movie-shared {
+  font-size: 0.9rem;
+}
+
+.movie-votes {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.vote-btn {
+  border: 1px solid #111827;
+  background: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.vote-btn.active {
+  background: #111827;
+  color: #fff;
+}
+
+.vote-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  min-width: 1.25rem;
+  text-align: center;
+}
+
+.movie-desc {
+  margin-top: 0.75rem;
+}
+
+.movie-desc-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.movie-desc-text {
+  margin-top: 0.25rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.movie-actions {
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.movie-link {
+  color: #111827;
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+.movie-remove {
+  border: 1px solid #111827;
+  background: #fff;
+  height: 30px;
+  padding: 0 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+@media (max-width: 820px) {
+  .movie-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Share page */
+.share-page {
+  padding: 2rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.share-card {
+  width: min(520px, 100%);
+  border: 1px solid #111827;
+  border-radius: 6px;
+  padding: 1.5rem;
+  background: #fff;
+}
+
+.share-card h2 {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+}
+
+.share-label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.share-label input,
+.share-label textarea {
+  border: 1px solid #111827;
+  border-radius: 4px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+}
+
+.share-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.share-btn {
+  border: 1px solid #111827;
+  background: #fff;
+  height: 32px;
+  padding: 0 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.share-btn.ghost {
+  background: #fff;
+  opacity: 0.85;
+}
+
+/* Legacy styles below were used by the previous UI. Keep them for now (non-breaking),
+   but they are no longer referenced by the wireframe-aligned layout above. */
 
 .auth-card h2 {
   font-size: 1.25rem;
